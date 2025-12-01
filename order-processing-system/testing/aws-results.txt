@@ -1,0 +1,79 @@
+========================================
+Order Processing System - Load Test
+========================================
+Target: http://order-processing-alb-1273353309.us-east-1.elb.amazonaws.com
+Total Requests: 1000
+Concurrency: 50
+========================================
+
+Checking service health...
+✅ Service is healthy
+
+Starting load test...
+========================================
+
+Using Apache Bench (ab)...
+
+This is ApacheBench, Version 2.3 <$Revision: 1923142 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking order-processing-alb-1273353309.us-east-1.elb.amazonaws.com (be patient)
+
+
+Server Software:        
+Server Hostname:        order-processing-alb-1273353309.us-east-1.elb.amazonaws.com
+Server Port:            80
+
+Document Path:          /orders
+Document Length:        253 bytes
+
+Concurrency Level:      50
+Time taken for tests:   12.647 seconds
+Complete requests:      1000
+Failed requests:        174
+   (Connect: 0, Receive: 0, Length: 174, Exceptions: 0)
+Total transferred:      400791 bytes
+Total body sent:        293000
+HTML transferred:       252791 bytes
+Requests per second:    79.07 [#/sec] (mean)
+Time per request:       632.335 [ms] (mean)
+Time per request:       12.647 [ms] (mean, across all concurrent requests)
+Transfer rate:          30.95 [Kbytes/sec] received
+                        22.63 kb/s sent
+                        53.57 kb/s total
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:       23   43   9.5     42      81
+Processing:    28  569 290.2    670    1159
+Waiting:       28  568 290.2    669    1159
+Total:         53  612 291.4    708    1199
+
+Percentage of the requests served within a certain time (ms)
+  50%    708
+  66%    798
+  75%    807
+  80%    830
+  90%    911
+  95%    996
+  98%   1010
+  99%   1084
+ 100%   1199 (longest request)
+
+========================================
+✅ Load test completed in 13s
+========================================
+
+Current System Metrics:
+========================================
+{
+    "completed": 0,
+    "failed": 0,
+    "pending": 1001,
+    "processing": 0,
+    "total_orders": 1001
+}
+
+
+✅ Done!

@@ -1,0 +1,7 @@
+aws_region   = "us-east-1"
+project_name = "order-processing"
+db_username  = "postgres"
+db_password  = "postgres123"
+db_name      = "orders"
+rabbitmq_user     = "guest"
+rabbitmq_password = "guest"
