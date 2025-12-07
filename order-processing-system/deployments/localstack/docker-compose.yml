@@ -59,12 +59,10 @@ services:
         condition: service_healthy
     restart: on-failure
 
-  # Payment Worker
   payment-worker:
     build:
       context: ../../src
       dockerfile: ../deployments/aws/Dockerfile.payment-worker
-    container_name: payment-worker
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
@@ -73,12 +71,13 @@ services:
       DB_NAME: orders
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
       QUEUE_NAME: orders
+      PREFETCH_COUNT: "20"  # ← ADD THIS LINE
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-    restart: on-failure
+    restart: always
 
 volumes:
   postgres_data:

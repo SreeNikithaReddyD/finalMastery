@@ -1,0 +1,349 @@
+=========================================
+PHASE 1: FUNCTIONAL TESTS
+=========================================
+
+Test 1.1: Health Check
+---
+✓ PASS: Health check returned 200
+Response: {"status":"healthy"}
+
+Test 1.2: Order Creation
+---
+✓ PASS: Order created successfully
+Order ID: ebcf2aac-821f-4bc5-803f-ef1ee87edcb0
+Response: {"id":"ebcf2aac-821f-4bc5-803f-ef1ee87edcb0","customer_id":"test-user-001","items":"[\"laptop\",\"mouse\",\"keyboard\"]","total":1599.99,"status":"pending","created_at":"2025-12-04T20:39:37.599529628Z","updated_at":"2025-12-04T20:39:37.599529878Z"}
+
+Test 1.3: Order Status Retrieval
+---
+Waiting 2 seconds for processing...
+✓ PASS: Order status retrieved
+Status: pending
+Response: {"id":"ebcf2aac-821f-4bc5-803f-ef1ee87edcb0","customer_id":"test-user-001","items":"[\"laptop\",\"mouse\",\"keyboard\"]","total":1599.99,"status":"pending","created_at":"2025-12-04T20:39:37.599529Z","updated_at":"2025-12-04T20:39:37.599529Z"}
+
+Test 1.4: List Orders
+---
+✓ PASS: Retrieved order list
+Order count:      100
+
+Test 1.5: System Metrics
+---
+✓ PASS: Metrics retrieved
+{
+    "completed": 1006,
+    "failed": 238,
+    "pending": 3269,
+    "processing": 1,
+    "total_orders": 4514
+}
+
+=========================================
+PHASE 2: PERFORMANCE TESTS
+=========================================
+
+Test 2.1: Baseline Load Test (1000 req, 50 concurrent)
+---
+========================================
+Order Processing System - Load Test
+========================================
+Target: http://localhost:8080
+Total Requests: 1000
+Concurrency: 50
+========================================
+
+Checking service health...
+✅ Service is healthy
+
+Starting load test...
+========================================
+
+Using Apache Bench (ab)...
+
+This is ApacheBench, Version 2.3 <$Revision: 1923142 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking localhost (be patient)
+Completed 100 requests
+Completed 200 requests
+Completed 300 requests
+Completed 400 requests
+Completed 500 requests
+Completed 600 requests
+Completed 700 requests
+Completed 800 requests
+Completed 900 requests
+Completed 1000 requests
+Finished 1000 requests
+
+
+Server Software:        
+Server Hostname:        localhost
+Server Port:            8080
+
+Document Path:          /orders
+Document Length:        253 bytes
+
+Concurrency Level:      50
+Time taken for tests:   0.668 seconds
+Complete requests:      1000
+Failed requests:        194
+   (Connect: 0, Receive: 0, Length: 194, Exceptions: 0)
+Total transferred:      381806 bytes
+Total body sent:        248000
+HTML transferred:       252806 bytes
+Requests per second:    1497.04 [#/sec] (mean)
+Time per request:       33.399 [ms] (mean)
+Time per request:       0.668 [ms] (mean, across all concurrent requests)
+Transfer rate:          558.18 [Kbytes/sec] received
+                        362.56 kb/s sent
+                        920.75 kb/s total
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        0    0   0.2      0       1
+Processing:     3   32  18.1     30     104
+Waiting:        3   32  18.1     29     104
+Total:          3   32  18.1     30     104
+
+Percentage of the requests served within a certain time (ms)
+  50%     30
+  66%     38
+  75%     42
+  80%     46
+  90%     59
+  95%     67
+  98%     80
+  99%     88
+ 100%    104 (longest request)
+
+========================================
+✅ Load test completed in 1s
+========================================
+
+Current System Metrics:
+========================================
+{
+    "completed": 1008,
+    "failed": 239,
+    "pending": 4266,
+    "processing": 1,
+    "total_orders": 5514
+}
+
+
+✅ Done!
+
+Test 2.2: Low Concurrency Test (500 req, 10 concurrent)
+---
+========================================
+Order Processing System - Load Test
+========================================
+Target: http://localhost:8080
+Total Requests: 500
+Concurrency: 10
+========================================
+
+Checking service health...
+✅ Service is healthy
+
+Starting load test...
+========================================
+
+Using Apache Bench (ab)...
+
+This is ApacheBench, Version 2.3 <$Revision: 1923142 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking localhost (be patient)
+Completed 100 requests
+Completed 200 requests
+Completed 300 requests
+Completed 400 requests
+Completed 500 requests
+Finished 500 requests
+
+
+Server Software:        
+Server Hostname:        localhost
+Server Port:            8080
+
+Document Path:          /orders
+Document Length:        253 bytes
+
+Concurrency Level:      10
+Time taken for tests:   0.303 seconds
+Complete requests:      500
+Failed requests:        146
+   (Connect: 0, Receive: 0, Length: 146, Exceptions: 0)
+Total transferred:      190852 bytes
+Total body sent:        124000
+HTML transferred:       126352 bytes
+Requests per second:    1651.25 [#/sec] (mean)
+Time per request:       6.056 [ms] (mean)
+Time per request:       0.606 [ms] (mean, across all concurrent requests)
+Transfer rate:          615.52 [Kbytes/sec] received
+                        399.91 kb/s sent
+                        1015.43 kb/s total
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        0    0   0.1      0       1
+Processing:     2    6   3.1      5      16
+Waiting:        2    6   3.1      5      16
+Total:          2    6   3.1      5      16
+
+Percentage of the requests served within a certain time (ms)
+  50%      5
+  66%      7
+  75%      8
+  80%      9
+  90%     10
+  95%     12
+  98%     14
+  99%     15
+ 100%     16 (longest request)
+
+========================================
+✅ Load test completed in 1s
+========================================
+
+Current System Metrics:
+========================================
+{
+    "completed": 1010,
+    "failed": 239,
+    "pending": 4764,
+    "processing": 1,
+    "total_orders": 6014
+}
+
+
+✅ Done!
+
+Test 2.3: High Concurrency Test (2000 req, 100 concurrent)
+---
+========================================
+Order Processing System - Load Test
+========================================
+Target: http://localhost:8080
+Total Requests: 2000
+Concurrency: 100
+========================================
+
+Checking service health...
+✅ Service is healthy
+
+Starting load test...
+========================================
+
+Using Apache Bench (ab)...
+
+This is ApacheBench, Version 2.3 <$Revision: 1923142 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking localhost (be patient)
+Completed 200 requests
+Completed 400 requests
+Completed 600 requests
+Completed 800 requests
+Completed 1000 requests
+Completed 1200 requests
+Completed 1400 requests
+Completed 1600 requests
+Completed 1800 requests
+Completed 2000 requests
+Finished 2000 requests
+
+
+Server Software:        
+Server Hostname:        localhost
+Server Port:            8080
+
+Document Path:          /orders
+Document Length:        253 bytes
+
+Concurrency Level:      100
+Time taken for tests:   1.265 seconds
+Complete requests:      2000
+Failed requests:        571
+   (Connect: 0, Receive: 0, Length: 571, Exceptions: 0)
+Non-2xx responses:      2
+Total transferred:      763015 bytes
+Total body sent:        496000
+HTML transferred:       504989 bytes
+Requests per second:    1581.59 [#/sec] (mean)
+Time per request:       63.227 [ms] (mean)
+Time per request:       0.632 [ms] (mean, across all concurrent requests)
+Transfer rate:          589.25 [Kbytes/sec] received
+                        383.04 kb/s sent
+                        972.29 kb/s total
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        0    0   0.4      0       2
+Processing:     3   62  34.9     63     203
+Waiting:        3   61  34.8     63     203
+Total:          3   62  35.0     63     205
+
+Percentage of the requests served within a certain time (ms)
+  50%     63
+  66%     75
+  75%     84
+  80%     90
+  90%    104
+  95%    122
+  98%    142
+  99%    157
+ 100%    205 (longest request)
+
+========================================
+✅ Load test completed in 1s
+========================================
+
+Current System Metrics:
+========================================
+{
+    "completed": 1014,
+    "failed": 239,
+    "pending": 6758,
+    "processing": 1,
+    "total_orders": 8012
+}
+
+
+✅ Done!
+
+=========================================
+PHASE 3: QUICK RELIABILITY CHECKS
+=========================================
+
+Test 3.1: Rapid Order Creation (10 orders)
+---
+✓ Success rate: 10/10
+
+=========================================
+FINAL SYSTEM METRICS
+=========================================
+{
+    "completed": 1014,
+    "failed": 240,
+    "pending": 6767,
+    "processing": 1,
+    "total_orders": 8022
+}
+
+=========================================
+TEST SUITE COMPLETE
+=========================================
+Environment: localstack
+Results saved to: testing/localstack/localstack_results_20251204_153937.txt
+
+SUMMARY:
+--------
+Functional Tests: 5/5 executed
+Performance Tests: 3/3 executed
+Reliability Tests: 1/1 executed
+
+Review detailed results in: testing/localstack/localstack_results_20251204_153937.txt

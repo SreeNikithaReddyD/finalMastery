@@ -1,30 +1,39 @@
 package queue
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type RabbitMQ struct {
-	conn    *amqp.Connection
-	channel *amqp.Channel
-	queue   string
+	conn       *amqp.Connection
+	channel    *amqp.Channel
+	queue      string
+	dlqName    string
+	maxRetries int
+	prefetch   int
 }
 
 type OrderMessage struct {
-	OrderID string  `json:"order_id"`
-	Amount  float64 `json:"amount"`
+	OrderID    string  `json:"order_id"`
+	Amount     float64 `json:"amount"`
+	RetryCount int     `json:"retry_count"`
 }
 
-func NewRabbitMQ(url, queueName string) (*RabbitMQ, error) {
+func NewRabbitMQ(url, queueName, dlqName string) (*RabbitMQ, error) {
+	return NewRabbitMQWithPrefetch(url, queueName, dlqName, 10)
+}
+
+func NewRabbitMQWithPrefetch(url, queueName, dlqName string, prefetch int) (*RabbitMQ, error) {
 	var conn *amqp.Connection
 	var err error
 
-	// Retry connection with exponential backoff
 	for i := 0; i < 5; i++ {
 		conn, err = amqp.Dial(url)
 		if err == nil {
@@ -44,14 +53,32 @@ func NewRabbitMQ(url, queueName string) (*RabbitMQ, error) {
 		return nil, fmt.Errorf("failed to open channel: %w", err)
 	}
 
-	// Declare queue
+	err = channel.Qos(prefetch, 0, false)
+	if err != nil {
+		channel.Close()
+		conn.Close()
+		return nil, fmt.Errorf("failed to set QoS: %w", err)
+	}
+	log.Printf("✓ Prefetch limit set to %d (concurrent processing)", prefetch)
+
+	_, err = channel.QueueDeclare(dlqName, true, false, false, false, nil)
+	if err != nil {
+		channel.Close()
+		conn.Close()
+		return nil, fmt.Errorf("failed to declare DLQ: %w", err)
+	}
+	log.Printf("✓ Dead-letter queue created: %s", dlqName)
+
 	_, err = channel.QueueDeclare(
 		queueName,
-		true,  // durable
-		false, // delete when unused
-		false, // exclusive
-		false, // no-wait
-		nil,   // arguments
+		true,
+		false,
+		false,
+		false,
+		amqp.Table{
+			"x-dead-letter-exchange":    "",
+			"x-dead-letter-routing-key": dlqName,
+		},
 	)
 	if err != nil {
 		channel.Close()
@@ -59,10 +86,15 @@ func NewRabbitMQ(url, queueName string) (*RabbitMQ, error) {
 		return nil, fmt.Errorf("failed to declare queue: %w", err)
 	}
 
+	log.Printf("✓ Main queue configured: %s -> %s (DLX)", queueName, dlqName)
+
 	return &RabbitMQ{
-		conn:    conn,
-		channel: channel,
-		queue:   queueName,
+		conn:       conn,
+		channel:    channel,
+		queue:      queueName,
+		dlqName:    dlqName,
+		maxRetries: 3,
+		prefetch:   prefetch,
 	}, nil
 }
 
@@ -73,10 +105,10 @@ func (r *RabbitMQ) Publish(message OrderMessage) error {
 	}
 
 	err = r.channel.Publish(
-		"",      // exchange
-		r.queue, // routing key
-		false,   // mandatory
-		false,   // immediate
+		"",
+		r.queue,
+		false,
+		false,
 		amqp.Publishing{
 			DeliveryMode: amqp.Persistent,
 			ContentType:  "application/json",
@@ -87,40 +119,85 @@ func (r *RabbitMQ) Publish(message OrderMessage) error {
 	return err
 }
 
-func (r *RabbitMQ) Consume(handler func(OrderMessage) error) error {
-	msgs, err := r.channel.Consume(
-		r.queue,
-		"",    // consumer
-		false, // auto-ack
-		false, // exclusive
-		false, // no-local
-		false, // no-wait
-		nil,   // args
-	)
+func (r *RabbitMQ) ConsumeWithContext(ctx context.Context, wg *sync.WaitGroup, handler func(OrderMessage) error) error {
+	msgs, err := r.channel.Consume(r.queue, "", false, false, false, false, nil)
 	if err != nil {
 		return fmt.Errorf("failed to register consumer: %w", err)
 	}
 
-	log.Printf("Waiting for messages on queue: %s", r.queue)
+	log.Printf("✓ Consumer started (prefetch=%d, concurrent processing enabled)", r.prefetch)
 
-	for msg := range msgs {
-		var orderMsg OrderMessage
-		if err := json.Unmarshal(msg.Body, &orderMsg); err != nil {
-			log.Printf("Error unmarshaling message: %v", err)
-			msg.Nack(false, false)
-			continue
+	sem := make(chan struct{}, r.prefetch)
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("⚠ Context cancelled - stopping message consumption")
+			return nil
+
+		case msg, ok := <-msgs:
+			if !ok {
+				log.Println("⚠ Channel closed - stopping consumer")
+				return nil
+			}
+
+			sem <- struct{}{}
+			wg.Add(1)
+
+			go func(delivery amqp.Delivery) {
+				defer wg.Done()
+				defer func() { <-sem }()
+
+				var orderMsg OrderMessage
+				if err := json.Unmarshal(delivery.Body, &orderMsg); err != nil {
+					log.Printf("✗ Invalid message format: %v", err)
+					delivery.Nack(false, false)
+					return
+				}
+
+				log.Printf("→ Processing order %s (retry %d/%d)",
+					orderMsg.OrderID, orderMsg.RetryCount, r.maxRetries)
+
+				err := handler(orderMsg)
+
+				if err != nil {
+					orderMsg.RetryCount++
+
+					if orderMsg.RetryCount >= r.maxRetries {
+						log.Printf("✗ Max retries (%d) exceeded for order %s - sending to DLQ",
+							r.maxRetries, orderMsg.OrderID)
+						delivery.Nack(false, false)
+						return
+					}
+
+					backoff := time.Duration(orderMsg.RetryCount*orderMsg.RetryCount) * time.Second
+					log.Printf("⟳ Retry %d/%d for order %s after %v",
+						orderMsg.RetryCount, r.maxRetries, orderMsg.OrderID, backoff)
+
+					time.Sleep(backoff)
+
+					body, _ := json.Marshal(orderMsg)
+					r.channel.Publish("", r.queue, false, false, amqp.Publishing{
+						DeliveryMode: amqp.Persistent,
+						ContentType:  "application/json",
+						Body:         body,
+					})
+
+					delivery.Ack(false)
+					return
+				}
+
+				delivery.Ack(false)
+				log.Printf("✓ Successfully processed order %s", orderMsg.OrderID)
+			}(msg)
 		}
-
-		if err := handler(orderMsg); err != nil {
-			log.Printf("Error handling message: %v", err)
-			msg.Nack(false, true)
-			continue
-		}
-
-		msg.Ack(false)
 	}
+}
 
-	return nil
+func (r *RabbitMQ) Consume(handler func(OrderMessage) error) error {
+	ctx := context.Background()
+	var wg sync.WaitGroup
+	return r.ConsumeWithContext(ctx, &wg, handler)
 }
 
 func (r *RabbitMQ) Close() {
@@ -130,4 +207,5 @@ func (r *RabbitMQ) Close() {
 	if r.conn != nil {
 		r.conn.Close()
 	}
+	log.Println("✓ RabbitMQ connection closed")
 }

@@ -54,15 +54,16 @@ func main() {
 	log.Println("Database connected and migrated successfully")
 
 	// RabbitMQ connection
-	rabbitURL := getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
-	queueName := getEnv("QUEUE_NAME", "orders")
+rabbitURL := getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
+queueName := getEnv("QUEUE_NAME", "orders")
+dlqName := queueName + "_dlq"
 
-	rmq, err := queue.NewRabbitMQ(rabbitURL, queueName)
-	if err != nil {
-		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
-	}
-	defer rmq.Close()
-	log.Println("RabbitMQ connected successfully")
+rmq, err := queue.NewRabbitMQ(rabbitURL, queueName, dlqName)
+if err != nil {
+	log.Fatalf("Failed to connect to RabbitMQ: %v", err)
+}
+defer rmq.Close()
+log.Println("RabbitMQ connected successfully")
 
 	server := &Server{db: db, queue: rmq}
 
